@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Daily results</title>
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#14212b;--mute:#5b6b78;--line:#d5dde5;--accent:#1f5eff;--sw:#2b9348;--sa:#1f5eff;--rf:#d6336c;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1720;--card:#17222d;--ink:#e8eef4;--mute:#93a3b1;--line:#2a3947;--accent:#6d97ff;--sw:#4cc16d;--sa:#6d97ff;--rf:#f06595;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:1.6rem;margin:8px 0 16px}
+h2{font-size:1.05rem;margin:24px 0 8px}
+form,.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+label,.lbl{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 4px}
+input,textarea{width:100%;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg button{padding:14px;font-weight:700;font-size:1.05rem}
+.seg button[aria-pressed=true],.view button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.msg{color:var(--rf);font-size:.85rem;min-height:1.2em;margin-top:4px}
+.counter{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 0 10px 10px}
+.counter .name{flex:1;font-weight:600}
+.counter .name small{display:block;font-weight:400;color:var(--mute);font-size:.8rem}
+.counter button{width:44px;height:44px;font-size:1.4rem;padding:0}
+.counter input{width:72px;text-align:center;font-size:1.3rem;font-weight:700;padding:8px}
+.c-sw{border-left:5px solid var(--sw)}.c-sa{border-left:5px solid var(--sa)}.c-rf{border-left:5px solid var(--rf)}
+.after{font-size:.85rem;color:var(--mute);margin:2px 0 0 15px;min-height:1.2em}
+.save{width:100%;margin-top:14px;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;padding:12px}
+.stock{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stock .card{border:1px solid var(--line);border-radius:10px;padding:12px}
+.stock h3{margin:0;font-size:.95rem}
+.stock b{display:block;font-size:2rem;line-height:1.2}
+.stock small{display:block;color:var(--mute);font-size:.78rem;min-height:2.4em}
+.stock .set{display:flex;gap:6px;margin-top:6px}
+.stock .set input{padding:8px;min-width:0}
+.low{color:var(--rf)}
+.view{display:flex;gap:6px;margin-bottom:12px}
+.totals{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
+.totals b{display:block;font-size:1.6rem}
+.totals span{font-size:.8rem;color:var(--mute)}
+.rate{margin-top:10px;text-align:center;color:var(--mute);font-size:.9rem}
+.tools{display:flex;gap:8px;margin-top:12px}
+.tools button{flex:1}
+.status{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--mute);font-size:.85rem;margin-bottom:8px}
+.wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.9rem}
+th,td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+th:nth-child(-n+4),td:nth-child(-n+4){text-align:left}
+th{color:var(--mute);font-weight:600;font-size:.8rem}
+tfoot td{font-weight:700;border-bottom:0;border-top:2px solid var(--ink)}
+td.sw{color:var(--sw);font-weight:600}td.sa{color:var(--sa);font-weight:600}td.rf{color:var(--rf);font-weight:600}
+td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
+.empty{text-align:center;color:var(--mute);padding:16px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>Daily results</h1>
+
+  <form id="f">
+    <div class="lbl">Channel</div>
+    <div class="seg" id="seg">
+      <button type="button" data-ch="POS" aria-pressed="false">POS</button>
+      <button type="button" data-ch="Horeca" aria-pressed="false">Horeca</button>
+    </div>
+    <div class="msg" id="chmsg"></div>
+
+    <div class="row">
+      <div><label for="date">Date</label><input id="date" type="date" required></div>
+      <div><label for="name">Your name</label><input id="name" required maxlength="40" placeholder="e.g. Ahmed"></div>
+    </div>
+    <label for="place">Location</label>
+    <input id="place" maxlength="60" placeholder="Store or venue">
+
+    <div class="counter c-sw">
+      <div class="name">EC<small>1 EC = 1 gift</small></div>
+      <button type="button" data-d="-1" data-t="sw" aria-label="EC minus">−</button>
+      <input id="sw" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="sw" aria-label="EC plus">+</button>
+    </div>
+    <div class="after" id="after"></div>
+    <div class="counter c-sa">
+      <div class="name">Cigarette sales<small>Packs sold</small></div>
+      <button type="button" data-d="-1" data-t="sa" aria-label="Sales minus">−</button>
+      <input id="sa" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="sa" aria-label="Sales plus">+</button>
+    </div>
+    <div class="counter c-rf">
+      <div class="name">Refused<small>People who said no</small></div>
+      <button type="button" data-d="-1" data-t="rf" aria-label="Refused minus">−</button>
+      <input id="rf" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="rf" aria-label="Refused plus">+</button>
+    </div>
+
+    <label for="notes">Notes</label>
+    <textarea id="notes" rows="2" maxlength="300" placeholder="Reasons for refusal, feedback, stock issues"></textarea>
+    <button class="save" type="submit">Save today's result</button>
+  </form>
+
+  <h2>Gift stock</h2>
+  <div class="stock" id="stock"></div>
+
+  <h2>Totals</h2>
+  <div class="box">
+    <div class="view" id="view"></div>
+    <div class="totals" id="totals"></div>
+    <div class="rate" id="rate"></div>
+    <div class="tools">
+      <button id="copy" type="button">Copy report</button>
+      <button id="csv" type="button">Download CSV</button>
+    </div>
+  </div>
+
+  <h2>Results</h2>
+  <div class="box">
+    <div class="status"><span id="status"></span><button id="refresh" type="button">Refresh</button></div>
+    <div id="list"></div>
+  </div>
+</main>
+
+<script>
+// Paste your Google Apps Script web app link between the quotes to share results with everyone.
+const SCRIPT_URL = "";
+
+const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
+const CH = ["POS", "Horeca"];
+const shared = !!SCRIPT_URL;
+let rows = [], channel = "", view = "All";
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = id => Math.max(0, parseInt($(id).value, 10) || 0);
+const setStatus = t => $("status").textContent = t;
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} };
+const post = obj => fetch(SCRIPT_URL, {method: "POST", mode: "no-cors", headers: {"Content-Type": "text/plain"}, body: JSON.stringify(obj)});
+const entries = () => rows.filter(r => r.kind !== "stock");
+
+$("date").value = today();
+try { $("name").value = localStorage.getItem(NAME) || ""; channel = localStorage.getItem(CHK) || ""; } catch (e) {}
+
+function stockInfo(ch) {
+  const s = rows.filter(r => r.kind === "stock" && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
+  if (!s) return null;
+  const used = entries().filter(r => r.channel === ch && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.sw, 0);
+  return {total: s.amount, used, left: s.amount - used, date: s.date};
+}
+
+async function sync() {
+  if (!shared) {
+    try { rows = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { rows = []; }
+    setStatus("Saved on this device only"); render(); return;
+  }
+  setStatus("Updating...");
+  try {
+    const d = await (await fetch(SCRIPT_URL)).json();
+    rows = d.map(x => ({id: String(x.id), date: String(x.date).slice(0, 10), name: x.name || "", place: x.place || "",
+      sw: +x.sw || 0, sa: +x.sa || 0, rf: +x.rf || 0, notes: x.notes || "",
+      channel: x.channel || "", kind: x.kind || "", amount: +x.amount || 0}));
+    setStatus("Updated " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}));
+  } catch (e) { setStatus("Could not reach the sheet. Showing last data."); }
+  render();
+}
+
+async function addRow(row) {
+  rows.push(row); render();
+  if (shared) {
+    setStatus("Saving...");
+    try { await post(row); } catch (err) { setStatus("Could not save to the sheet. Check your connection."); return; }
+    setTimeout(sync, 1500);
+  } else saveLocal();
+}
+
+function updateAfter() {
+  const el = $("after");
+  if (!channel) { el.textContent = ""; return; }
+  const s = stockInfo(channel);
+  if (!s) { el.textContent = `Set the ${channel} gift stock below first.`; el.style.color = ""; return; }
+  const left = s.left - num("sw");
+  el.textContent = `${channel} gifts left after this: ${left}`;
+  el.style.color = left < 0 ? "var(--rf)" : "";
+}
+
+function render() {
+  document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
+  $("stock").innerHTML = CH.map(ch => {
+    const s = stockInfo(ch);
+    return `<div class="card"><h3>${ch}</h3>
+      <b class="${s && s.left <= 10 ? "low" : ""}">${s ? s.left : "-"}</b>
+      <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
+      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${ch}" placeholder="New total" aria-label="${ch} gift total">
+      <button type="button" data-stock="${ch}">Set</button></div></div>`;
+  }).join("");
+  $("view").innerHTML = ["All", ...CH].map(v => `<button type="button" data-view="${v}" aria-pressed="${v === view}">${v}</button>`).join("");
+
+  const vis = entries().filter(r => view === "All" || r.channel === view);
+  const sum = k => vis.reduce((a, r) => a + r[k], 0);
+  const sw = sum("sw"), sa = sum("sa"), rf = sum("rf");
+  $("totals").innerHTML = `<div><b>${sw}</b><span>EC</span></div><div><b>${sa}</b><span>Sales</span></div><div><b>${rf}</b><span>Refused</span></div><div><b>${sw + rf}</b><span>QC</span></div>`;
+  $("rate").textContent = sw + rf ? `EC rate: ${Math.round(sw / (sw + rf) * 100)}% (EC ÷ QC)` : "";
+  const sorted = [...vis].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
+  $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
+    <thead><tr><th>Date</th><th>Channel</th><th>Name</th><th>Location</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th></th></tr></thead>
+    <tbody>${sorted.map(r => `<tr><td>${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
+      <td>${esc(r.place) || "-"}${r.notes ? `<small>${esc(r.notes)}</small>` : ""}</td>
+      <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
+      <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td></td></tr></tfoot>
+    </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
+  updateAfter();
+}
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.t) { $(b.dataset.t).value = Math.max(0, num(b.dataset.t) + +b.dataset.d); updateAfter(); }
+  if (b.dataset.ch) {
+    channel = b.dataset.ch; $("chmsg").textContent = "";
+    try { localStorage.setItem(CHK, channel); } catch (err) {}
+    render();
+  }
+  if (b.dataset.view) { view = b.dataset.view; render(); }
+  if (b.dataset.stock) {
+    const ch = b.dataset.stock, v = parseInt($("stk-" + ch).value, 10);
+    if (isNaN(v) || v < 0) return;
+    if (!confirm(`Set the ${ch} gift stock to ${v}? Counting starts again from now.`)) return;
+    await addRow({id: String(Date.now()), date: today(), name: $("name").value.trim(), place: "", sw: 0, sa: 0, rf: 0,
+      notes: "", channel: ch, kind: "stock", amount: v});
+  }
+  if (b.dataset.del && confirm("Delete this entry?")) {
+    rows = rows.filter(r => r.id != b.dataset.del); render();
+    if (shared) { try { await post({action: "delete", id: b.dataset.del}); } catch (err) {} setTimeout(sync, 1500); }
+    else saveLocal();
+  }
+});
+$("sw").addEventListener("input", updateAfter);
+
+$("f").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!channel) { $("chmsg").textContent = "Choose POS or Horeca first."; $("seg").scrollIntoView({block: "center"}); return; }
+  const s = stockInfo(channel), ec = num("sw");
+  if (s && ec > s.left && !confirm(`Only ${s.left} ${channel} gifts left but EC is ${ec}. Save anyway?`)) return;
+  const name = $("name").value.trim();
+  try { localStorage.setItem(NAME, name); } catch (err) {}
+  const row = {id: String(Date.now()), date: $("date").value, name, place: $("place").value.trim(),
+    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: 0};
+  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = "";
+  await addRow(row);
+});
+
+$("refresh").addEventListener("click", sync);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
+setInterval(() => { if (!document.hidden) sync(); }, 60000);
+
+$("copy").addEventListener("click", async () => {
+  const d = $("date").value, n = $("name").value.trim().toLowerCase();
+  const lines = [`Daily report ${d}${n ? " - " + $("name").value.trim() : ""}`];
+  CH.forEach(ch => {
+    const day = entries().filter(r => r.channel === ch && r.date === d && (!n || r.name.toLowerCase() === n));
+    if (!day.length) return;
+    const t = k => day.reduce((a, r) => a + r[k], 0), s = stockInfo(ch);
+    lines.push(`${ch}: EC ${t("sw")} | Sales ${t("sa")} | Refused ${t("rf")} | QC ${t("sw") + t("rf")}${s ? " | Gifts left " + s.left : ""}`);
+  });
+  if (lines.length === 1) lines.push("No entries for this date.");
+  const text = lines.join("\n");
+  try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
+  catch (err) { prompt("Copy this report:", text); }
+  setTimeout(() => $("copy").textContent = "Copy report", 1500);
+});
+
+$("csv").addEventListener("click", () => {
+  const q = s => `"${String(s).replace(/"/g, '""')}"`;
+  const lines = ["Date,Channel,Name,Location,EC,Cigarette sales,Refused,QC,Notes"]
+    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, q(r.notes)].join(",")));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
+  a.download = "daily-results.csv"; a.click();
+});
+sync();
+</script>
+</body>
+</html>
