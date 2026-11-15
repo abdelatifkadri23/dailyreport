@@ -8,6 +8,12 @@
 :root{--bg:#eef2f6;--card:#fff;--ink:#14212b;--mute:#5b6b78;--line:#d5dde5;--accent:#1f5eff;--sw:#2b9348;--sa:#1f5eff;--rf:#d6336c;color-scheme:light}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1720;--card:#17222d;--ink:#e8eef4;--mute:#93a3b1;--line:#2a3947;--accent:#6d97ff;--sw:#4cc16d;--sa:#6d97ff;--rf:#f06595;color-scheme:dark}}
 *{box-sizing:border-box}
+:root{--pos:#1f5eff;--hor:#e03131}
+@media (prefers-color-scheme:dark){:root{--pos:#6d97ff;--hor:#ff6b6b}}
+td.lane-POS{border-left:5px solid var(--pos)}td.lane-Horeca{border-left:5px solid var(--hor)}
+.stock .card.POS{border-left:5px solid var(--pos)}.stock .card.Horeca{border-left:5px solid var(--hor)}
+.seg button[data-ch=POS][aria-pressed=true]{background:var(--pos);border-color:var(--pos);color:#fff}
+.seg button[data-ch=Horeca][aria-pressed=true]{background:var(--hor);border-color:var(--hor);color:#fff}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:1.6rem;margin:8px 0 16px}
@@ -124,7 +130,7 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwi7HQb9vzUOK1jKUKmYxrYsORL79DMQ2t7Vk-x92p2kvrxP5BwTuKGBcaFOazWMm0JmA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const CH = ["POS", "Horeca"];
@@ -192,7 +198,7 @@ function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
   $("stock").innerHTML = CH.map(ch => {
     const s = stockInfo(ch);
-    return `<div class="card"><h3>${ch}</h3>
+    return `<div class="card ${ch}"><h3>${ch}</h3>
       <b class="${s && s.left <= 10 ? "low" : ""}">${s ? s.left : "-"}</b>
       <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
       <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${ch}" placeholder="New total" aria-label="${ch} gift total">
@@ -210,7 +216,7 @@ function render() {
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
     <thead><tr><th>Date</th><th>Channel</th><th>Name</th><th>Location</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
-    <tbody>${sorted.map(r => `<tr><td>${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
+    <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td>${esc(r.place) || "-"}${r.notes ? `<small>${esc(r.notes)}</small>` : ""}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw))}</b></td>
