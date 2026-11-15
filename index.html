@@ -124,10 +124,14 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwi7HQb9vzUOK1jKUKmYxrYsORL79DMQ2t7Vk-x92p2kvrxP5BwTuKGBcaFOazWMm0JmA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const CH = ["POS", "Horeca"];
+// OBJ targets: Horeca is capped at 100%, POS can go above 100%.
+const TARGET = {POS: 20, Horeca: 10};
+const objPct = (ch, ec) => { const t = TARGET[ch]; if (!t) return null; const p = Math.round(ec / t * 100); return ch === "Horeca" ? Math.min(p, 100) : p; };
+const objTxt = p => p === null ? "-" : p + "%";
 const shared = !!SCRIPT_URL;
 let rows = [], channel = "", view = "All";
 const $ = id => document.getElementById(id);
@@ -202,13 +206,16 @@ function render() {
   $("totals").innerHTML = `<div><b>${sw}</b><span>EC</span></div><div><b>${sa}</b><span>Sales</span></div><div><b>${rf}</b><span>Refused</span></div><div><b>${sw + rf}</b><span>QC</span></div>`;
   $("rate").textContent = sw + rf ? `EC rate: ${Math.round(sw / (sw + rf) * 100)}% (EC ÷ QC)` : "";
   const sorted = [...vis].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
+  const ov = sorted.map(r => objPct(r.channel, r.sw)).filter(p => p !== null);
+  const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>Name</th><th>Location</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>Name</th><th>Location</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td>${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td>${esc(r.place) || "-"}${r.notes ? `<small>${esc(r.notes)}</small>` : ""}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
+      <td class="${objPct(r.channel, r.sw) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw))}</b></td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
 }
@@ -261,7 +268,7 @@ $("copy").addEventListener("click", async () => {
     const day = entries().filter(r => r.channel === ch && r.date === d && (!n || r.name.toLowerCase() === n));
     if (!day.length) return;
     const t = k => day.reduce((a, r) => a + r[k], 0), s = stockInfo(ch);
-    lines.push(`${ch}: EC ${t("sw")} | Sales ${t("sa")} | Refused ${t("rf")} | QC ${t("sw") + t("rf")}${s ? " | Gifts left " + s.left : ""}`);
+    lines.push(`${ch}: EC ${t("sw")} | Sales ${t("sa")} | Refused ${t("rf")} | QC ${t("sw") + t("rf")} | OBJ ${objTxt(objPct(ch, t("sw")))}${s ? " | Gifts left " + s.left : ""}`);
   });
   if (lines.length === 1) lines.push("No entries for this date.");
   const text = lines.join("\n");
@@ -272,8 +279,8 @@ $("copy").addEventListener("click", async () => {
 
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = ["Date,Channel,Name,Location,EC,Cigarette sales,Refused,QC,Notes"]
-    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, q(r.notes)].join(",")));
+  const lines = ["Date,Channel,Name,Location,EC,Cigarette sales,Refused,QC,OBJ,Notes"]
+    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw)), q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
   a.download = "daily-results.csv"; a.click();
