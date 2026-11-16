@@ -77,10 +77,8 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
     <div class="row">
       <div><label for="date">Date</label><input id="date" type="date" required></div>
-      <div><label for="name">Your name</label><input id="name" required maxlength="40" placeholder="e.g. Ahmed"></div>
+      <div><label for="name" id="namelbl">POS name</label><input id="name" required maxlength="40" placeholder="e.g. Benslimane sabri"></div>
     </div>
-    <label for="place">Location</label>
-    <input id="place" maxlength="60" placeholder="Store or venue">
 
     <div class="counter c-sw">
       <div class="name">EC<small>1 EC = 1 gift</small></div>
@@ -90,7 +88,7 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     </div>
     <div class="after" id="after"></div>
     <div class="counter c-sa">
-      <div class="name">Cigarette sales<small>Packs sold</small></div>
+      <div class="name">Cigarette sales<small>Individual sticks (tiges)</small></div>
       <button type="button" data-d="-1" data-t="sa" aria-label="Sales minus">−</button>
       <input id="sa" type="number" min="0" value="0" inputmode="numeric">
       <button type="button" data-d="1" data-t="sa" aria-label="Sales plus">+</button>
@@ -115,6 +113,10 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <div class="view" id="view"></div>
     <div class="totals" id="totals"></div>
     <div class="rate" id="rate"></div>
+    <div class="row" style="margin-top:12px">
+      <div><label for="jsales">JTI sales (report only)</label><input id="jsales" type="number" min="0" value="0" inputmode="numeric"></div>
+      <div><label for="jshoulder">JTI shoulder (report only)</label><input id="jshoulder" type="number" min="0" value="0" inputmode="numeric"></div>
+    </div>
     <div class="tools">
       <button id="copy" type="button">Copy report</button>
       <button id="csv" type="button">Download CSV</button>
@@ -130,9 +132,11 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwi7HQb9vzUOK1jKUKmYxrYsORL79DMQ2t7Vk-x92p2kvrxP5BwTuKGBcaFOazWMm0JmA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
+const BA = "Kadri Abdelatif", WILAYA = "annaba", COMMUNE = "annaba";
+const JTI = "daily-results-jti";
 const CH = ["POS", "Horeca"];
 // OBJ targets: Horeca is capped at 100%, POS can go above 100%.
 const TARGET = {POS: 20, Horeca: 10};
@@ -150,7 +154,7 @@ const post = obj => fetch(SCRIPT_URL, {method: "POST", mode: "no-cors", headers:
 const entries = () => rows.filter(r => r.kind !== "stock");
 
 $("date").value = today();
-try { $("name").value = localStorage.getItem(NAME) || ""; channel = localStorage.getItem(CHK) || ""; } catch (e) {}
+try { channel = localStorage.getItem(CHK) || ""; } catch (e) {}
 
 function stockInfo(ch) {
   const s = rows.filter(r => r.kind === "stock" && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
@@ -196,6 +200,7 @@ function updateAfter() {
 
 function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
+  $("namelbl").textContent = channel === "Horeca" ? "Horeca name" : "POS name";
   $("stock").innerHTML = CH.map(ch => {
     const s = stockInfo(ch);
     return `<div class="card ${ch}"><h3>${ch}</h3>
@@ -215,9 +220,9 @@ function render() {
   const ov = sorted.map(r => objPct(r.channel, r.sw)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>Name</th><th>Location</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
-      <td>${esc(r.place) || "-"}${r.notes ? `<small>${esc(r.notes)}</small>` : ""}</td>
+      <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw))}</b></td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
@@ -256,28 +261,41 @@ $("f").addEventListener("submit", async e => {
   const s = stockInfo(channel), ec = num("sw");
   if (s && ec > s.left && !confirm(`Only ${s.left} ${channel} gifts left but EC is ${ec}. Save anyway?`)) return;
   const name = $("name").value.trim();
-  try { localStorage.setItem(NAME, name); } catch (err) {}
-  const row = {id: String(Date.now()), date: $("date").value, name, place: $("place").value.trim(),
+  const row = {id: String(Date.now()), date: $("date").value, name, place: WILAYA,
     sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: 0};
-  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = "";
+  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
   await addRow(row);
 });
+
+const jtiAll = () => { try { return JSON.parse(localStorage.getItem(JTI)) || {}; } catch (e) { return {}; } };
+function loadJti() { const j = jtiAll()[$("date").value] || {}; $("jsales").value = j.s || 0; $("jshoulder").value = j.h || 0; }
+function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
+$("jsales").addEventListener("input", saveJti);
+$("jshoulder").addEventListener("input", saveJti);
+$("date").addEventListener("change", loadJti);
+loadJti();
 
 $("refresh").addEventListener("click", sync);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
 setInterval(() => { if (!document.hidden) sync(); }, 60000);
 
 $("copy").addEventListener("click", async () => {
-  const d = $("date").value, n = $("name").value.trim().toLowerCase();
-  const lines = [`Daily report ${d}${n ? " - " + $("name").value.trim() : ""}`];
-  CH.forEach(ch => {
-    const day = entries().filter(r => r.channel === ch && r.date === d && (!n || r.name.toLowerCase() === n));
-    if (!day.length) return;
-    const t = k => day.reduce((a, r) => a + r[k], 0), s = stockInfo(ch);
-    lines.push(`${ch}: EC ${t("sw")} | Sales ${t("sa")} | Refused ${t("rf")} | QC ${t("sw") + t("rf")} | OBJ ${objTxt(objPct(ch, t("sw")))}${s ? " | Gifts left " + s.left : ""}`);
-  });
-  if (lines.length === 1) lines.push("No entries for this date.");
-  const text = lines.join("\n");
+  const d = $("date").value, day = entries().filter(r => r.date === d);
+  if (!day.length) { alert("No entries for this date."); return; }
+  const pad = n => String(n).padStart(2, "0");
+  const tot = (a, k) => a.reduce((x, r) => x + r[k], 0);
+  const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
+  const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
+  const j = jtiAll()[d] || {};
+  const text = [
+    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${COMMUNE}`, "",
+    `*QC Total*: ${pad(tot(day, "sw") + tot(day, "rf"))}`,
+    `*EC Total*: ${pad(tot(pos, "sw"))}`,
+    `*Total JTI sales*: ${pad(j.s || 0)}`,
+    `*Total JTI shoulder*: ${pad(j.h || 0)}`,
+    `*Vente LD Club*: 00`,
+    ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
+    `*Vente Tiges*: ${pad(tot(day, "sa"))}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
@@ -285,7 +303,7 @@ $("copy").addEventListener("click", async () => {
 
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = ["Date,Channel,Name,Location,EC,Cigarette sales,Refused,QC,OBJ,Notes"]
+  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Notes"]
     .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw)), q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
