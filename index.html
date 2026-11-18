@@ -115,9 +115,11 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <div class="view" id="view"></div>
     <div class="totals" id="totals"></div>
     <div class="rate" id="rate"></div>
-    <div class="row" style="margin-top:12px">
-      <div><label for="jsales">JTI sales (report only)</label><input id="jsales" type="number" min="0" value="0" inputmode="numeric"></div>
-      <div><label for="jshoulder">JTI shoulder (report only)</label><input id="jshoulder" type="number" min="0" value="0" inputmode="numeric"></div>
+    <div class="lbl" style="margin-top:12px">Report only (not shown in results)</div>
+    <div class="row" style="grid-template-columns:1fr 1fr 1fr">
+      <div><label for="jsales">JTI sales</label><input id="jsales" type="number" min="0" value="0" inputmode="numeric"></div>
+      <div><label for="jshoulder">JTI shoulder</label><input id="jshoulder" type="number" min="0" value="0" inputmode="numeric"></div>
+      <div><label for="reward">Reward</label><input id="reward" type="number" min="0" value="2" inputmode="numeric"></div>
     </div>
     <div class="tools">
       <button id="copy" type="button">Copy report</button>
@@ -271,10 +273,11 @@ $("f").addEventListener("submit", async e => {
 });
 
 const jtiAll = () => { try { return JSON.parse(localStorage.getItem(JTI)) || {}; } catch (e) { return {}; } };
-function loadJti() { const j = jtiAll()[$("date").value] || {}; $("jsales").value = j.s || 0; $("jshoulder").value = j.h || 0; }
-function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
+function loadJti() { const j = jtiAll()[$("date").value] || {}; $("jsales").value = j.s || 0; $("jshoulder").value = j.h || 0; $("reward").value = j.r === undefined ? 2 : j.r; }
+function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder"), r: num("reward")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
 $("jsales").addEventListener("input", saveJti);
 $("jshoulder").addEventListener("input", saveJti);
+$("reward").addEventListener("input", saveJti);
 $("date").addEventListener("change", loadJti);
 loadJti();
 
@@ -290,16 +293,17 @@ $("copy").addEventListener("click", async () => {
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
   const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
   const j = jtiAll()[d] || {};
+  const [y, m, dd] = d.split("-");
   const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
   const text = [
-    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${communes}`, "",
+    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${communes}`, `*Date*: ${dd}/${m}/${y}`, "",
     `*QC Total*: ${pad(tot(day, "sw") + tot(day, "rf"))}`,
     `*EC Total*: ${pad(tot(pos, "sw"))}`,
     `*Total JTI sales*: ${pad(j.s || 0)}`,
     `*Total JTI shoulder*: ${pad(j.h || 0)}`,
     `*Vente LD Club*: 00`,
     ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
-    `*Vente Tiges*: ${pad(tot(day, "sa"))}`].join("\n");
+    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(j.r === undefined ? 2 : j.r)}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
