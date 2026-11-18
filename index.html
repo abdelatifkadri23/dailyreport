@@ -20,8 +20,8 @@ h1{font-size:1.6rem;margin:8px 0 16px}
 h2{font-size:1.05rem;margin:24px 0 8px}
 form,.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
 label,.lbl{display:block;font-size:.85rem;color:var(--mute);margin:10px 0 4px}
-input,textarea{width:100%;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
-input:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input,textarea,select{width:100%;padding:10px;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px}
+input:focus,textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 12px}
 .seg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -79,6 +79,8 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
       <div><label for="date">Date</label><input id="date" type="date" required></div>
       <div><label for="name" id="namelbl">POS name</label><input id="name" required maxlength="40" placeholder="e.g. Benslimane sabri"></div>
     </div>
+    <label for="commune">Commune</label>
+    <select id="commune"><option>Annaba</option><option>El Bouni</option><option>Sidi Amar</option></select>
 
     <div class="counter c-sw">
       <div class="name">EC<small>1 EC = 1 gift</small></div>
@@ -135,12 +137,12 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
-const BA = "Kadri Abdelatif", WILAYA = "annaba", COMMUNE = "annaba";
+const BA = "Kadri Abdelatif", WILAYA = "annaba";
 const JTI = "daily-results-jti";
 const CH = ["POS", "Horeca"];
-// OBJ targets: Horeca is capped at 100%, POS can go above 100%.
-const TARGET = {POS: 20, Horeca: 10};
-const objPct = (ch, ec) => { const t = TARGET[ch]; if (!t) return null; const p = Math.round(ec / t * 100); return ch === "Horeca" ? Math.min(p, 100) : p; };
+// OBJ targets: POS is 20 EC before 17 Nov 2026 and 7 EC from that date. Horeca is 10 EC and capped at 100%.
+const target = (ch, date) => ch === "POS" ? (date >= "2026-11-17" ? 7 : 20) : ch === "Horeca" ? 10 : 0;
+const objPct = (ch, ec, date) => { const t = target(ch, date); if (!t) return null; const p = Math.round(ec / t * 100); return ch === "Horeca" ? Math.min(p, 100) : p; };
 const objTxt = p => p === null ? "-" : p + "%";
 const shared = !!SCRIPT_URL;
 let rows = [], channel = "", view = "All";
@@ -154,7 +156,7 @@ const post = obj => fetch(SCRIPT_URL, {method: "POST", mode: "no-cors", headers:
 const entries = () => rows.filter(r => r.kind !== "stock");
 
 $("date").value = today();
-try { channel = localStorage.getItem(CHK) || ""; } catch (e) {}
+try { channel = localStorage.getItem(CHK) || ""; const c = localStorage.getItem("daily-results-commune"); if (c) $("commune").value = c; } catch (e) {}
 
 function stockInfo(ch) {
   const s = rows.filter(r => r.kind === "stock" && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
@@ -217,14 +219,14 @@ function render() {
   $("totals").innerHTML = `<div><b>${sw}</b><span>EC</span></div><div><b>${sa}</b><span>Sales</span></div><div><b>${rf}</b><span>Refused</span></div><div><b>${sw + rf}</b><span>QC</span></div>`;
   $("rate").textContent = sw + rf ? `EC rate: ${Math.round(sw / (sw + rf) * 100)}% (EC ÷ QC)` : "";
   const sorted = [...vis].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
-  const ov = sorted.map(r => objPct(r.channel, r.sw)).filter(p => p !== null);
+  const ov = sorted.map(r => objPct(r.channel, r.sw, r.date)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
     <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
-      <td class="${objPct(r.channel, r.sw) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw))}</b></td>
+      <td class="${objPct(r.channel, r.sw, r.date) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw, r.date))}</b></td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
     <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
@@ -254,6 +256,7 @@ document.addEventListener("click", async e => {
   }
 });
 $("sw").addEventListener("input", updateAfter);
+$("commune").addEventListener("change", () => { try { localStorage.setItem("daily-results-commune", $("commune").value); } catch (e) {} });
 
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
@@ -261,7 +264,7 @@ $("f").addEventListener("submit", async e => {
   const s = stockInfo(channel), ec = num("sw");
   if (s && ec > s.left && !confirm(`Only ${s.left} ${channel} gifts left but EC is ${ec}. Save anyway?`)) return;
   const name = $("name").value.trim();
-  const row = {id: String(Date.now()), date: $("date").value, name, place: WILAYA,
+  const row = {id: String(Date.now()), date: $("date").value, name, place: $("commune").value,
     sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: 0};
   ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
   await addRow(row);
@@ -287,8 +290,9 @@ $("copy").addEventListener("click", async () => {
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
   const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
   const j = jtiAll()[d] || {};
+  const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
   const text = [
-    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${COMMUNE}`, "",
+    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${communes}`, "",
     `*QC Total*: ${pad(tot(day, "sw") + tot(day, "rf"))}`,
     `*EC Total*: ${pad(tot(pos, "sw"))}`,
     `*Total JTI sales*: ${pad(j.s || 0)}`,
@@ -304,7 +308,7 @@ $("copy").addEventListener("click", async () => {
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
   const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Notes"]
-    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw)), q(r.notes)].join(",")));
+    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
   a.download = "daily-results.csv"; a.click();
