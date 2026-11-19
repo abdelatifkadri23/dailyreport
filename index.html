@@ -43,6 +43,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line
 .stock small{display:block;color:var(--mute);font-size:.78rem;min-height:2.4em}
 .stock .set{display:flex;gap:6px;margin-top:6px}
 .stock .set input{padding:8px;min-width:0}
+.stock .card.Rewards{border-left:5px solid var(--sw);grid-column:1/-1}
 .low{color:var(--rf)}
 .view{display:flex;gap:6px;margin-bottom:12px}
 .totals{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
@@ -136,7 +137,7 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyZzZNG82uSjVuITD7-qTNCvwBUIMIGWKRrplnHXPpWNOn3JXPemUYvFBH8VnDShnnZA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const BA = "Kadri Abdelatif", WILAYA = "annaba";
@@ -155,7 +156,7 @@ const setStatus = t => $("status").textContent = t;
 const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} };
 const post = obj => fetch(SCRIPT_URL, {method: "POST", mode: "no-cors", headers: {"Content-Type": "text/plain"}, body: JSON.stringify(obj)});
-const entries = () => rows.filter(r => r.kind !== "stock");
+const entries = () => rows.filter(r => r.kind !== "stock" && r.kind !== "reward");
 
 $("date").value = today();
 try { channel = localStorage.getItem(CHK) || ""; const c = localStorage.getItem("daily-results-commune"); if (c) $("commune").value = c; } catch (e) {}
@@ -163,7 +164,9 @@ try { channel = localStorage.getItem(CHK) || ""; const c = localStorage.getItem(
 function stockInfo(ch) {
   const s = rows.filter(r => r.kind === "stock" && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
   if (!s) return null;
-  const used = entries().filter(r => r.channel === ch && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.sw, 0);
+  const used = ch === "Rewards"
+    ? rows.filter(r => r.kind === "reward" && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.amount, 0)
+    : entries().filter(r => r.channel === ch && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.sw, 0);
   return {total: s.amount, used, left: s.amount - used, date: s.date};
 }
 
@@ -205,12 +208,12 @@ function updateAfter() {
 function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
   $("namelbl").textContent = channel === "Horeca" ? "Horeca name" : "POS name";
-  $("stock").innerHTML = CH.map(ch => {
+  $("stock").innerHTML = [...CH, "Rewards"].map(ch => {
     const s = stockInfo(ch);
     return `<div class="card ${ch}"><h3>${ch}</h3>
-      <b class="${s && s.left <= 10 ? "low" : ""}">${s ? s.left : "-"}</b>
+      <b class="${s && s.left <= (ch === "Rewards" ? 5 : 10) ? "low" : ""}">${s ? s.left : "-"}</b>
       <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
-      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${ch}" placeholder="New total" aria-label="${ch} gift total">
+      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${ch}" placeholder="New total" aria-label="${ch} stock total">
       <button type="button" data-stock="${ch}">Set</button></div></div>`;
   }).join("");
   $("view").innerHTML = ["All", ...CH].map(v => `<button type="button" data-view="${v}" aria-pressed="${v === view}">${v}</button>`).join("");
@@ -233,6 +236,7 @@ function render() {
     <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
+  loadJti();
 }
 
 document.addEventListener("click", async e => {
@@ -247,7 +251,7 @@ document.addEventListener("click", async e => {
   if (b.dataset.stock) {
     const ch = b.dataset.stock, v = parseInt($("stk-" + ch).value, 10);
     if (isNaN(v) || v < 0) return;
-    if (!confirm(`Set the ${ch} gift stock to ${v}? Counting starts again from now.`)) return;
+    if (!confirm(`Set the ${ch} stock to ${v}? Counting starts again from now.`)) return;
     await addRow({id: String(Date.now()), date: today(), name: $("name").value.trim(), place: "", sw: 0, sa: 0, rf: 0,
       notes: "", channel: ch, kind: "stock", amount: v});
   }
@@ -273,11 +277,30 @@ $("f").addEventListener("submit", async e => {
 });
 
 const jtiAll = () => { try { return JSON.parse(localStorage.getItem(JTI)) || {}; } catch (e) { return {}; } };
-function loadJti() { const j = jtiAll()[$("date").value] || {}; $("jsales").value = j.s || 0; $("jshoulder").value = j.h || 0; $("reward").value = j.r === undefined ? 2 : j.r; }
+function loadJti() {
+  const d = $("date").value, j = jtiAll()[d] || {}, rr = rows.find(r => r.kind === "reward" && r.date === d);
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
+  set("jsales", j.s || 0); set("jshoulder", j.h || 0); set("reward", rr ? rr.amount : (j.r === undefined ? 2 : j.r));
+}
+function rewardOk(d, v) {
+  const old = rows.find(r => r.kind === "reward" && r.date === d), s = stockInfo("Rewards");
+  const prev = old && s && Number(old.id) > Number(s.id) ? old.amount : 0;
+  return !s || v - prev <= s.left || confirm(`Only ${s.left} rewards left but you are giving ${v}. Save anyway?`);
+}
+async function saveReward(d, v) {
+  const old = rows.find(r => r.kind === "reward" && r.date === d);
+  if (old ? old.amount === v : v === 0) return;
+  if (old) {
+    rows = rows.filter(r => r.id !== old.id);
+    if (shared) { try { await post({action: "delete", id: old.id}); } catch (err) {} }
+  }
+  await addRow({id: String(Date.now()), date: d, name: "", place: "", sw: 0, sa: 0, rf: 0, notes: "", channel: "", kind: "reward", amount: v});
+}
 function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder"), r: num("reward")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
 $("jsales").addEventListener("input", saveJti);
 $("jshoulder").addEventListener("input", saveJti);
 $("reward").addEventListener("input", saveJti);
+$("reward").addEventListener("change", () => { const d = $("date").value, v = num("reward"); if (rewardOk(d, v)) saveReward(d, v); });
 $("date").addEventListener("change", loadJti);
 loadJti();
 
@@ -292,7 +315,8 @@ $("copy").addEventListener("click", async () => {
   const tot = (a, k) => a.reduce((x, r) => x + r[k], 0);
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
   const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
-  const j = jtiAll()[d] || {};
+  const j = jtiAll()[d] || {}, rv = num("reward");
+  if (!rewardOk(d, rv)) return;
   const [y, m, dd] = d.split("-");
   const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
   const text = [
@@ -303,10 +327,11 @@ $("copy").addEventListener("click", async () => {
     `*Total JTI shoulder*: ${pad(j.h || 0)}`,
     `*Vente LD Club*: 00`,
     ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
-    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(j.r === undefined ? 2 : j.r)}`].join("\n");
+    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(rv)}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
+  saveReward(d, rv);
 });
 
 $("csv").addEventListener("click", () => {
