@@ -33,7 +33,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line
 .counter .name small{display:block;font-weight:400;color:var(--mute);font-size:.8rem}
 .counter button{width:44px;height:44px;font-size:1.4rem;padding:0}
 .counter input{width:72px;text-align:center;font-size:1.3rem;font-weight:700;padding:8px}
-.c-sw{border-left:5px solid var(--sw)}.c-sa{border-left:5px solid var(--sa)}.c-rf{border-left:5px solid var(--rf)}
+.c-sw{border-left:5px solid var(--sw)}.c-sa{border-left:5px solid var(--sa)}.c-rf{border-left:5px solid var(--rf)}.c-rw{border-left:5px solid #e08a00}
 .after{font-size:.85rem;color:var(--mute);margin:2px 0 0 15px;min-height:1.2em}
 .save{width:100%;margin-top:14px;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;padding:12px}
 .stock{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -43,7 +43,6 @@ button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line
 .stock small{display:block;color:var(--mute);font-size:.78rem;min-height:2.4em}
 .stock .set{display:flex;gap:6px;margin-top:6px}
 .stock .set input{padding:8px;min-width:0}
-.stock .card.Rewards{border-left:5px solid var(--sw);grid-column:1/-1}
 .low{color:var(--rf)}
 .view{display:flex;gap:6px;margin-bottom:12px}
 .totals{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center}
@@ -103,17 +102,20 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
       <button type="button" data-d="1" data-t="rf" aria-label="Refused plus">+</button>
     </div>
 
-    <div id="rwdbox" style="display:none">
-      <label for="rwdsel">Reward for this Horeca</label>
-      <select id="rwdsel"><option value="0">No reward</option><option value="1">Reward given</option></select>
+    <div class="counter c-rw">
+      <div class="name">Rewards<small>Given to this POS / Horeca</small></div>
+      <button type="button" data-d="-1" data-t="rw" aria-label="Rewards minus">−</button>
+      <input id="rw" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="rw" aria-label="Rewards plus">+</button>
     </div>
+    <div class="after" id="rafter"></div>
 
     <label for="notes">Notes</label>
     <textarea id="notes" rows="2" maxlength="300" placeholder="Reasons for refusal, feedback, stock issues"></textarea>
     <button class="save" type="submit">Save today's result</button>
   </form>
 
-  <h2>Gift stock</h2>
+  <h2>Gift and rewards stock</h2>
   <div class="stock" id="stock"></div>
 
   <h2>Totals</h2>
@@ -122,10 +124,9 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <div class="totals" id="totals"></div>
     <div class="rate" id="rate"></div>
     <div class="lbl" style="margin-top:12px">Report only (not shown in results)</div>
-    <div class="row" style="grid-template-columns:1fr 1fr 1fr">
+    <div class="row">
       <div><label for="jsales">JTI sales</label><input id="jsales" type="number" min="0" value="0" inputmode="numeric"></div>
       <div><label for="jshoulder">JTI shoulder</label><input id="jshoulder" type="number" min="0" value="0" inputmode="numeric"></div>
-      <div><label for="reward">Reward</label><input id="reward" type="number" min="0" value="2" inputmode="numeric"></div>
     </div>
     <div class="tools">
       <button id="copy" type="button">Copy report</button>
@@ -161,17 +162,16 @@ const setStatus = t => $("status").textContent = t;
 const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 const saveLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(rows)); } catch (e) {} };
 const post = obj => fetch(SCRIPT_URL, {method: "POST", mode: "no-cors", headers: {"Content-Type": "text/plain"}, body: JSON.stringify(obj)});
-const entries = () => rows.filter(r => r.kind !== "stock" && r.kind !== "reward");
+const entries = () => rows.filter(r => r.kind !== "stock" && r.kind !== "rstock" && r.kind !== "reward");
 
 $("date").value = today();
 try { channel = localStorage.getItem(CHK) || ""; const c = localStorage.getItem("daily-results-commune"); if (c) $("commune").value = c; } catch (e) {}
 
-function stockInfo(ch) {
-  const s = rows.filter(r => r.kind === "stock" && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
+function stockInfo(ch, kind = "stock") {
+  const s = rows.filter(r => r.kind === kind && r.channel === ch).sort((a, b) => Number(b.id) - Number(a.id))[0];
   if (!s) return null;
-  const used = ch === "Rewards"
-    ? rows.filter(r => r.kind === "reward" && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.amount, 0)
-    : entries().filter(r => r.channel === ch && Number(r.id) > Number(s.id)).reduce((a, r) => a + r.sw, 0);
+  const f = kind === "rstock" ? "amount" : "sw";
+  const used = entries().filter(r => r.channel === ch && Number(r.id) > Number(s.id)).reduce((a, r) => a + r[f], 0);
   return {total: s.amount, used, left: s.amount - used, date: s.date};
 }
 
@@ -201,27 +201,26 @@ async function addRow(row) {
 }
 
 function updateAfter() {
-  const el = $("after");
-  if (!channel) { el.textContent = ""; return; }
-  const s = stockInfo(channel);
-  if (!s) { el.textContent = `Set the ${channel} gift stock below first.`; el.style.color = ""; return; }
-  const left = s.left - num("sw");
-  el.textContent = `${channel} gifts left after this: ${left}`;
-  el.style.color = left < 0 ? "var(--rf)" : "";
+  const el = $("after"), rl = $("rafter");
+  if (!channel) { el.textContent = ""; rl.textContent = ""; return; }
+  const s = stockInfo(channel), r = stockInfo(channel, "rstock");
+  if (!s) { el.textContent = `Set the ${channel} gift stock below first.`; el.style.color = ""; }
+  else { const left = s.left - num("sw"); el.textContent = `${channel} gifts left after this: ${left}`; el.style.color = left < 0 ? "var(--rf)" : ""; }
+  if (!r) { rl.textContent = `Set the ${channel} rewards stock below first.`; rl.style.color = ""; }
+  else { const left = r.left - num("rw"); rl.textContent = `${channel} rewards left after this: ${left}`; rl.style.color = left < 0 ? "var(--rf)" : ""; }
 }
 
 function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
-  $("rwdbox").style.display = channel === "Horeca" ? "" : "none";
   $("namelbl").textContent = channel === "Horeca" ? "Horeca name" : "POS name";
-  $("stock").innerHTML = [...CH, "Rewards"].map(ch => {
-    const s = stockInfo(ch);
-    return `<div class="card ${ch}"><h3>${ch}</h3>
-      <b class="${s && s.left <= (ch === "Rewards" ? 5 : 10) ? "low" : ""}">${s ? s.left : "-"}</b>
+  $("stock").innerHTML = [["stock", "gifts"], ["rstock", "rewards"]].flatMap(([k, lab]) => CH.map(ch => {
+    const s = stockInfo(ch, k);
+    return `<div class="card ${ch}"><h3>${ch} ${lab}</h3>
+      <b class="${s && s.left <= (k === "rstock" ? 5 : 10) ? "low" : ""}">${s ? s.left : "-"}</b>
       <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
-      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${ch}" placeholder="New total" aria-label="${ch} stock total">
-      <button type="button" data-stock="${ch}">Set</button></div></div>`;
-  }).join("");
+      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${k}-${ch}" placeholder="New total" aria-label="${ch} ${lab} total">
+      <button type="button" data-stock="${ch}" data-kind="${k}">Set</button></div></div>`;
+  })).join("");
   $("view").innerHTML = ["All", ...CH].map(v => `<button type="button" data-view="${v}" aria-pressed="${v === view}">${v}</button>`).join("");
 
   const vis = entries().filter(r => view === "All" || r.channel === view);
@@ -238,9 +237,9 @@ function render() {
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw, r.date) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw, r.date))}</b></td>
-      <td class="${r.channel === "Horeca" && r.amount === 1 ? "sw" : ""}">${r.channel === "Horeca" ? (r.amount === 1 ? "✓ Yes" : "✗ No") : "-"}</td>
+      <td class="${r.amount > 0 ? "sw" : ""}">${r.amount}</td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${vis.some(r => r.channel === "Horeca") ? vis.filter(r => r.channel === "Horeca" && r.amount === 1).length : "-"}</td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${sum("amount")}</td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
   loadJti();
@@ -256,11 +255,11 @@ document.addEventListener("click", async e => {
   }
   if (b.dataset.view) { view = b.dataset.view; render(); }
   if (b.dataset.stock) {
-    const ch = b.dataset.stock, v = parseInt($("stk-" + ch).value, 10);
+    const ch = b.dataset.stock, k = b.dataset.kind, v = parseInt($("stk-" + k + "-" + ch).value, 10);
     if (isNaN(v) || v < 0) return;
-    if (!confirm(`Set the ${ch} stock to ${v}? Counting starts again from now.`)) return;
+    if (!confirm(`Set the ${ch} ${k === "rstock" ? "rewards" : "gift"} stock to ${v}? Counting starts again from now.`)) return;
     await addRow({id: String(Date.now()), date: today(), name: $("name").value.trim(), place: "", sw: 0, sa: 0, rf: 0,
-      notes: "", channel: ch, kind: "stock", amount: v});
+      notes: "", channel: ch, kind: k, amount: v});
   }
   if (b.dataset.del && confirm("Delete this entry?")) {
     rows = rows.filter(r => r.id != b.dataset.del); render();
@@ -269,45 +268,32 @@ document.addEventListener("click", async e => {
   }
 });
 $("sw").addEventListener("input", updateAfter);
+$("rw").addEventListener("input", updateAfter);
 $("commune").addEventListener("change", () => { try { localStorage.setItem("daily-results-commune", $("commune").value); } catch (e) {} });
 
 $("f").addEventListener("submit", async e => {
   e.preventDefault();
   if (!channel) { $("chmsg").textContent = "Choose POS or Horeca first."; $("seg").scrollIntoView({block: "center"}); return; }
   const s = stockInfo(channel), ec = num("sw");
+  const rs = stockInfo(channel, "rstock"), rw = num("rw");
   if (s && ec > s.left && !confirm(`Only ${s.left} ${channel} gifts left but EC is ${ec}. Save anyway?`)) return;
+  if (rs && rw > rs.left && !confirm(`Only ${rs.left} ${channel} rewards left but you entered ${rw}. Save anyway?`)) return;
   const name = $("name").value.trim();
   const row = {id: String(Date.now()), date: $("date").value, name, place: $("commune").value,
-    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: channel === "Horeca" ? Number($("rwdsel").value) : 0};
-  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = ""; $("rwdsel").value = "0";
+    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: rw};
+  ["sw", "sa", "rf", "rw"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
   await addRow(row);
 });
 
 const jtiAll = () => { try { return JSON.parse(localStorage.getItem(JTI)) || {}; } catch (e) { return {}; } };
 function loadJti() {
-  const d = $("date").value, j = jtiAll()[d] || {}, rr = rows.find(r => r.kind === "reward" && r.date === d);
+  const j = jtiAll()[$("date").value] || {};
   const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
-  set("jsales", j.s || 0); set("jshoulder", j.h || 0); set("reward", rr ? rr.amount : (j.r === undefined ? 2 : j.r));
+  set("jsales", j.s || 0); set("jshoulder", j.h || 0);
 }
-function rewardOk(d, v) {
-  const old = rows.find(r => r.kind === "reward" && r.date === d), s = stockInfo("Rewards");
-  const prev = old && s && Number(old.id) > Number(s.id) ? old.amount : 0;
-  return !s || v - prev <= s.left || confirm(`Only ${s.left} rewards left but you are giving ${v}. Save anyway?`);
-}
-async function saveReward(d, v) {
-  const old = rows.find(r => r.kind === "reward" && r.date === d);
-  if (old ? old.amount === v : v === 0) return;
-  if (old) {
-    rows = rows.filter(r => r.id !== old.id);
-    if (shared) { try { await post({action: "delete", id: old.id}); } catch (err) {} }
-  }
-  await addRow({id: String(Date.now()), date: d, name: "", place: "", sw: 0, sa: 0, rf: 0, notes: "", channel: "", kind: "reward", amount: v});
-}
-function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder"), r: num("reward")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
+function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
 $("jsales").addEventListener("input", saveJti);
 $("jshoulder").addEventListener("input", saveJti);
-$("reward").addEventListener("input", saveJti);
-$("reward").addEventListener("change", () => { const d = $("date").value, v = num("reward"); if (rewardOk(d, v)) saveReward(d, v); });
 $("date").addEventListener("change", loadJti);
 loadJti();
 
@@ -322,8 +308,7 @@ $("copy").addEventListener("click", async () => {
   const tot = (a, k) => a.reduce((x, r) => x + r[k], 0);
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
   const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
-  const j = jtiAll()[d] || {}, rv = num("reward");
-  if (!rewardOk(d, rv)) return;
+  const j = jtiAll()[d] || {};
   const [y, m, dd] = d.split("-");
   const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
   const text = [
@@ -334,17 +319,16 @@ $("copy").addEventListener("click", async () => {
     `*Total JTI shoulder*: ${pad(j.h || 0)}`,
     `*Vente LD Club*: 00`,
     ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
-    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(rv)}`].join("\n");
+    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(tot(day, "amount"))}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
-  saveReward(d, rv);
 });
 
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Horeca reward,Notes"]
-    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), r.channel === "Horeca" ? (r.amount === 1 ? "Yes" : "No") : "", q(r.notes)].join(",")));
+  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Rewards,Notes"]
+    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), r.amount, q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
   a.download = "daily-results.csv"; a.click();
