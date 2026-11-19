@@ -103,6 +103,11 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
       <button type="button" data-d="1" data-t="rf" aria-label="Refused plus">+</button>
     </div>
 
+    <div id="rwdbox" style="display:none">
+      <label for="rwdsel">Reward for this Horeca</label>
+      <select id="rwdsel"><option value="0">No reward</option><option value="1">Reward given</option></select>
+    </div>
+
     <label for="notes">Notes</label>
     <textarea id="notes" rows="2" maxlength="300" placeholder="Reasons for refusal, feedback, stock issues"></textarea>
     <button class="save" type="submit">Save today's result</button>
@@ -207,6 +212,7 @@ function updateAfter() {
 
 function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
+  $("rwdbox").style.display = channel === "Horeca" ? "" : "none";
   $("namelbl").textContent = channel === "Horeca" ? "Horeca name" : "POS name";
   $("stock").innerHTML = [...CH, "Rewards"].map(ch => {
     const s = stockInfo(ch);
@@ -227,13 +233,14 @@ function render() {
   const ov = sorted.map(r => objPct(r.channel, r.sw, r.date)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw, r.date) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw, r.date))}</b></td>
+      <td class="${r.channel === "Horeca" && r.amount === 1 ? "sw" : ""}">${r.channel === "Horeca" ? (r.amount === 1 ? "✓ Yes" : "✗ No") : "-"}</td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${vis.some(r => r.channel === "Horeca") ? vis.filter(r => r.channel === "Horeca" && r.amount === 1).length : "-"}</td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
   loadJti();
@@ -271,8 +278,8 @@ $("f").addEventListener("submit", async e => {
   if (s && ec > s.left && !confirm(`Only ${s.left} ${channel} gifts left but EC is ${ec}. Save anyway?`)) return;
   const name = $("name").value.trim();
   const row = {id: String(Date.now()), date: $("date").value, name, place: $("commune").value,
-    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: 0};
-  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
+    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: channel === "Horeca" ? Number($("rwdsel").value) : 0};
+  ["sw", "sa", "rf"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = ""; $("rwdsel").value = "0";
   await addRow(row);
 });
 
@@ -336,8 +343,8 @@ $("copy").addEventListener("click", async () => {
 
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Notes"]
-    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), q(r.notes)].join(",")));
+  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Horeca reward,Notes"]
+    .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), r.channel === "Horeca" ? (r.amount === 1 ? "Yes" : "No") : "", q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
   a.download = "daily-results.csv"; a.click();
