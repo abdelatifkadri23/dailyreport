@@ -33,7 +33,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line
 .counter .name small{display:block;font-weight:400;color:var(--mute);font-size:.8rem}
 .counter button{width:44px;height:44px;font-size:1.4rem;padding:0}
 .counter input{width:72px;text-align:center;font-size:1.3rem;font-weight:700;padding:8px}
-.c-sw{border-left:5px solid var(--sw)}.c-sa{border-left:5px solid var(--sa)}.c-rf{border-left:5px solid var(--rf)}.c-rw{border-left:5px solid #e08a00}
+.c-sw{border-left:5px solid var(--sw)}.c-sa{border-left:5px solid var(--sa)}.c-rf{border-left:5px solid var(--rf)}.c-rw{border-left:5px solid #e08a00}.c-jt{border-left:5px solid #7a5cff}.c-sh{border-left:5px solid #00a3a3}
 .after{font-size:.85rem;color:var(--mute);margin:2px 0 0 15px;min-height:1.2em}
 .save{width:100%;margin-top:14px;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;padding:12px}
 .stock{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -102,6 +102,18 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
       <button type="button" data-d="1" data-t="rf" aria-label="Refused plus">+</button>
     </div>
 
+    <div class="counter c-jt">
+      <div class="name">JTI sales<small>Report only</small></div>
+      <button type="button" data-d="-1" data-t="jti" aria-label="JTI sales minus">−</button>
+      <input id="jti" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="jti" aria-label="JTI sales plus">+</button>
+    </div>
+    <div class="counter c-sh">
+      <div class="name">JTI shoulder<small>Report only</small></div>
+      <button type="button" data-d="-1" data-t="shd" aria-label="JTI shoulder minus">−</button>
+      <input id="shd" type="number" min="0" value="0" inputmode="numeric">
+      <button type="button" data-d="1" data-t="shd" aria-label="JTI shoulder plus">+</button>
+    </div>
     <div class="counter c-rw">
       <div class="name">Rewards<small>Given to this POS / Horeca</small></div>
       <button type="button" data-d="-1" data-t="rw" aria-label="Rewards minus">−</button>
@@ -123,11 +135,6 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <div class="view" id="view"></div>
     <div class="totals" id="totals"></div>
     <div class="rate" id="rate"></div>
-    <div class="lbl" style="margin-top:12px">Report only (not shown in results)</div>
-    <div class="row">
-      <div><label for="jsales">JTI sales</label><input id="jsales" type="number" min="0" value="0" inputmode="numeric"></div>
-      <div><label for="jshoulder">JTI shoulder</label><input id="jshoulder" type="number" min="0" value="0" inputmode="numeric"></div>
-    </div>
     <div class="tools">
       <button id="copy" type="button">Copy report</button>
       <button id="csv" type="button">Download CSV</button>
@@ -143,7 +150,7 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyZzZNG82uSjVuITD7-qTNCvwBUIMIGWKRrplnHXPpWNOn3JXPemUYvFBH8VnDShnnZA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const BA = "Kadri Abdelatif", WILAYA = "annaba";
@@ -185,7 +192,7 @@ async function sync() {
     const d = await (await fetch(SCRIPT_URL)).json();
     rows = d.map(x => ({id: String(x.id), date: String(x.date).slice(0, 10), name: x.name || "", place: x.place || "",
       sw: +x.sw || 0, sa: +x.sa || 0, rf: +x.rf || 0, notes: x.notes || "",
-      channel: x.channel || "", kind: x.kind || "", amount: +x.amount || 0}));
+      channel: x.channel || "", kind: x.kind || "", amount: +x.amount || 0, jti: +x.jti || 0, shoulder: +x.shoulder || 0}));
     setStatus("Updated " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}));
   } catch (e) { setStatus("Could not reach the sheet. Showing last data."); }
   render();
@@ -199,6 +206,14 @@ async function addRow(row) {
     setTimeout(sync, 1500);
   } else saveLocal();
 }
+
+function rewardsLeftAfter(r) {
+  const st = rows.filter(x => x.kind === "rstock" && x.channel === r.channel && x.date <= r.date).sort((a, b) => Number(b.id) - Number(a.id))[0];
+  if (!st) return null;
+  const used = entries().filter(x => x.channel === r.channel && Number(x.id) > Number(st.id) && x.date <= r.date).reduce((a, x) => a + x.amount, 0);
+  return st.amount - used;
+}
+const leftTxt = r => { const v = rewardsLeftAfter(r); return v === null ? "-" : v; };
 
 function updateAfter() {
   const el = $("after"), rl = $("rafter");
@@ -232,17 +247,16 @@ function render() {
   const ov = sorted.map(r => objPct(r.channel, r.sw, r.date)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th>Rewards left</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw, r.date) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw, r.date))}</b></td>
-      <td class="${r.amount > 0 ? "sw" : ""}">${r.amount}</td>
+      <td class="${r.amount > 0 ? "sw" : ""}">${r.amount}</td><td><b>${leftTxt(r)}</b></td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${sum("amount")}</td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${sum("amount")}</td><td></td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
-  loadJti();
 }
 
 document.addEventListener("click", async e => {
@@ -280,22 +294,10 @@ $("f").addEventListener("submit", async e => {
   if (rs && rw > rs.left && !confirm(`Only ${rs.left} ${channel} rewards left but you entered ${rw}. Save anyway?`)) return;
   const name = $("name").value.trim();
   const row = {id: String(Date.now()), date: $("date").value, name, place: $("commune").value,
-    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: rw};
-  ["sw", "sa", "rf", "rw"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
+    sw: ec, sa: num("sa"), rf: num("rf"), notes: $("notes").value.trim(), channel, kind: "", amount: rw, jti: num("jti"), shoulder: num("shd")};
+  ["sw", "sa", "rf", "rw", "jti", "shd"].forEach(i => $(i).value = 0); $("notes").value = ""; $("name").value = "";
   await addRow(row);
 });
-
-const jtiAll = () => { try { return JSON.parse(localStorage.getItem(JTI)) || {}; } catch (e) { return {}; } };
-function loadJti() {
-  const j = jtiAll()[$("date").value] || {};
-  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
-  set("jsales", j.s || 0); set("jshoulder", j.h || 0);
-}
-function saveJti() { const a = jtiAll(); a[$("date").value] = {s: num("jsales"), h: num("jshoulder")}; try { localStorage.setItem(JTI, JSON.stringify(a)); } catch (e) {} }
-$("jsales").addEventListener("input", saveJti);
-$("jshoulder").addEventListener("input", saveJti);
-$("date").addEventListener("change", loadJti);
-loadJti();
 
 $("refresh").addEventListener("click", sync);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) sync(); });
@@ -305,18 +307,17 @@ $("copy").addEventListener("click", async () => {
   const d = $("date").value, day = entries().filter(r => r.date === d);
   if (!day.length) { alert("No entries for this date."); return; }
   const pad = n => String(n).padStart(2, "0");
-  const tot = (a, k) => a.reduce((x, r) => x + r[k], 0);
+  const tot = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
   const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
-  const j = jtiAll()[d] || {};
   const [y, m, dd] = d.split("-");
   const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
   const text = [
     `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${communes}`, `*Date*: ${dd}/${m}/${y}`, "",
     `*QC Total*: ${pad(tot(day, "sw") + tot(day, "rf"))}`,
     `*EC Total*: ${pad(tot(pos, "sw"))}`,
-    `*Total JTI sales*: ${pad(j.s || 0)}`,
-    `*Total JTI shoulder*: ${pad(j.h || 0)}`,
+    `*Total JTI sales*: ${pad(tot(day, "jti"))}`,
+    `*Total JTI shoulder*: ${pad(tot(day, "shoulder"))}`,
     `*Vente LD Club*: 00`,
     ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
     `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(tot(day, "amount"))}`].join("\n");
