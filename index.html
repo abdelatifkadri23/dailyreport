@@ -90,10 +90,10 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     </div>
     <div class="after" id="after"></div>
     <div class="counter c-sa">
-      <div class="name">Cigarette sales<small>Individual sticks (tiges)</small></div>
-      <button type="button" data-d="-1" data-t="sa" aria-label="Sales minus">−</button>
+      <div class="name">Stick sales<small>Individual sticks (tiges)</small></div>
+      <button type="button" data-d="-1" data-t="sa" aria-label="Stick sales minus">−</button>
       <input id="sa" type="number" min="0" value="0" inputmode="numeric">
-      <button type="button" data-d="1" data-t="sa" aria-label="Sales plus">+</button>
+      <button type="button" data-d="1" data-t="sa" aria-label="Stick sales plus">+</button>
     </div>
     <div class="counter c-rf">
       <div class="name">Refused<small>People who said no</small></div>
@@ -109,10 +109,10 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
       <button type="button" data-d="1" data-t="jti" aria-label="JTI sales plus">+</button>
     </div>
     <div class="counter c-sh">
-      <div class="name">JTI shoulder<small>Report only</small></div>
-      <button type="button" data-d="-1" data-t="shd" aria-label="JTI shoulder minus">−</button>
+      <div class="name">Cold shoulder<small>Report only</small></div>
+      <button type="button" data-d="-1" data-t="shd" aria-label="Cold shoulder minus">−</button>
       <input id="shd" type="number" min="0" value="0" inputmode="numeric">
-      <button type="button" data-d="1" data-t="shd" aria-label="JTI shoulder plus">+</button>
+      <button type="button" data-d="1" data-t="shd" aria-label="Cold shoulder plus">+</button>
     </div>
     <div class="counter c-rw">
       <div class="name">Rewards<small>Given to this POS / Horeca</small></div>
@@ -127,8 +127,11 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <button class="save" type="submit">Save today's result</button>
   </form>
 
-  <h2>Gift and rewards stock</h2>
-  <div class="stock" id="stock"></div>
+  <h2>Gift stock</h2>
+  <div class="stock" id="stock-gift"></div>
+
+  <h2>Rewards stock</h2>
+  <div class="stock" id="stock-reward"></div>
 
   <h2>Totals</h2>
   <div class="box">
@@ -150,10 +153,10 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyZzZNG82uSjVuITD7-qTNCvwBUIMIGWKRrplnHXPpWNOn3JXPemUYvFBH8VnDShnnZA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
-const BA = "Kadri Abdelatif", WILAYA = "annaba";
+const BA = "Kadri abdelatif", WILAYA = "Annaba";
 const JTI = "daily-results-jti";
 const CH = ["POS", "Horeca"];
 // OBJ targets: POS is 20 EC before 17 Nov 2026 and 7 EC from that date. Horeca is 10 EC and capped at 100%.
@@ -228,26 +231,28 @@ function updateAfter() {
 function render() {
   document.querySelectorAll("#seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.ch === channel));
   $("namelbl").textContent = channel === "Horeca" ? "Horeca name" : "POS name";
-  $("stock").innerHTML = [["stock", "gifts"], ["rstock", "rewards"]].flatMap(([k, lab]) => CH.map(ch => {
-    const s = stockInfo(ch, k);
-    return `<div class="card ${ch}"><h3>${ch} ${lab}</h3>
-      <b class="${s && s.left <= (k === "rstock" ? 5 : 10) ? "low" : ""}">${s ? s.left : "-"}</b>
-      <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
-      <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${k}-${ch}" placeholder="New total" aria-label="${ch} ${lab} total">
-      <button type="button" data-stock="${ch}" data-kind="${k}">Set</button></div></div>`;
-  })).join("");
+  [["stock", "gifts", "stock-gift"], ["rstock", "rewards", "stock-reward"]].forEach(([k, lab, box]) => {
+    $(box).innerHTML = CH.map(ch => {
+      const s = stockInfo(ch, k);
+      return `<div class="card ${ch}"><h3>${ch} ${lab}</h3>
+        <b class="${s && s.left <= (k === "rstock" ? 5 : 10) ? "low" : ""}">${s ? s.left : "-"}</b>
+        <small>${s ? `left of ${s.total} (set ${s.date})` : "No stock set yet"}</small>
+        <div class="set"><input type="number" min="0" inputmode="numeric" id="stk-${k}-${ch}" placeholder="New total" aria-label="${ch} ${lab} total">
+        <button type="button" data-stock="${ch}" data-kind="${k}">Set</button></div></div>`;
+    }).join("");
+  });
   $("view").innerHTML = ["All", ...CH].map(v => `<button type="button" data-view="${v}" aria-pressed="${v === view}">${v}</button>`).join("");
 
   const vis = entries().filter(r => view === "All" || r.channel === view);
   const sum = k => vis.reduce((a, r) => a + r[k], 0);
   const sw = sum("sw"), sa = sum("sa"), rf = sum("rf");
-  $("totals").innerHTML = `<div><b>${sw}</b><span>EC</span></div><div><b>${sa}</b><span>Sales</span></div><div><b>${rf}</b><span>Refused</span></div><div><b>${sw + rf}</b><span>QC</span></div>`;
+  $("totals").innerHTML = `<div><b>${sw}</b><span>EC</span></div><div><b>${sa}</b><span>Stick sales</span></div><div><b>${rf}</b><span>Refused</span></div><div><b>${sw + rf}</b><span>QC</span></div>`;
   $("rate").textContent = sw + rf ? `EC rate: ${Math.round(sw / (sw + rf) * 100)}% (EC ÷ QC)` : "";
   const sorted = [...vis].sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
   const ov = sorted.map(r => objPct(r.channel, r.sw, r.date)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sales</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th>Rewards left</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sticks</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th>Rewards left</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
@@ -308,19 +313,22 @@ $("copy").addEventListener("click", async () => {
   if (!day.length) { alert("No entries for this date."); return; }
   const pad = n => String(n).padStart(2, "0");
   const tot = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
+  const qc = a => tot(a, "sw") + tot(a, "rf");
   const pos = day.filter(r => r.channel === "POS"), hor = day.filter(r => r.channel === "Horeca");
-  const names = [...new Set((pos.length ? pos : day).map(r => r.name).filter(Boolean))].join(", ");
-  const [y, m, dd] = d.split("-");
-  const communes = [...new Set((pos.length ? pos : day).map(r => r.place).filter(Boolean))].join(", ");
+  const uniq = a => [...new Set(a.map(r => r.name).filter(Boolean))].join(", ");
+  const names = [uniq(pos), uniq(hor)].filter(Boolean).join(" / ") || uniq(day);
+  const communes = [...new Set(day.map(r => r.place).filter(Boolean))].join(", ");
   const text = [
-    `*Nom du BA*: ${BA}`, `*Nom du Pos*: ${names}`, `*Wilaya*: ${WILAYA}`, `*Commune*: ${communes}`, `*Date*: ${dd}/${m}/${y}`, "",
-    `*QC Total*: ${pad(tot(day, "sw") + tot(day, "rf"))}`,
-    `*EC Total*: ${pad(tot(pos, "sw"))}`,
-    `*Total JTI sales*: ${pad(tot(day, "jti"))}`,
-    `*Total JTI shoulder*: ${pad(tot(day, "shoulder"))}`,
-    `*Vente LD Club*: 00`,
-    ...(hor.length ? [`*Camel informing*: ${pad(tot(hor, "sw"))}`] : []), "",
-    `*Vente Tiges*: ${pad(tot(day, "sa"))}`, `*Reward*: ${pad(tot(day, "amount"))}`].join("\n");
+    "Bonsoir à tous", "",
+    `*Nom du BA :* ${BA}`, `*Nom du POS :* ${names}`, `*Commune :* ${communes}`, `*Wilaya :* ${WILAYA}`,
+    `*QC Total :* ${hor.length ? pad(qc(pos)) + " / " + pad(qc(hor)) : pad(qc(day))}`,
+    `*EC Total :* ${pad(tot(pos, "sw"))}`,
+    `*Franchise LD :* 0`,
+    `*Total JTI-Sales :* ${tot(day, "jti")}`,
+    `*Total Cold Shoulder :* ${tot(day, "shoulder")}`,
+    ...(hor.length ? [`*CML Informing :* ${pad(tot(hor, "sw"))}`] : []),
+    `*Vente Tiges :* ${pad(tot(day, "sa"))}`,
+    `*Reward :* ${pad(tot(day, "amount"))}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
@@ -328,7 +336,7 @@ $("copy").addEventListener("click", async () => {
 
 $("csv").addEventListener("click", () => {
   const q = s => `"${String(s).replace(/"/g, '""')}"`;
-  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Cigarette sales,Refused,QC,OBJ,Rewards,Notes"]
+  const lines = ["Date,Channel,POS / Horeca name,Location,EC,Stick sales,Refused,QC,OBJ,Rewards,Notes"]
     .concat(entries().map(r => [r.date, r.channel, q(r.name), q(r.place), r.sw, r.sa, r.rf, r.sw + r.rf, objTxt(objPct(r.channel, r.sw, r.date)), r.amount, q(r.notes)].join(",")));
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\n")], {type: "text/csv"}));
