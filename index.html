@@ -149,12 +149,12 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
     <div class="status"><span id="status"></span><button id="refresh" type="button">Refresh</button></div>
     <div id="list"></div>
   </div>
-  <p class="rate" style="margin-top:28px">Version: report v4 (POS rewards only, QC with slash)</p>
+  <p class="rate" style="margin-top:28px">Version: report v5 (gifts left column)</p>
 </main>
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyZzZNG82uSjVuITD7-qTNCvwBUIMIGWKRrplnHXPpWNOn3JXPemUYvFBH8VnDShnnZA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const BA = "Kadri abdelatif", WILAYA = "Annaba";
@@ -219,6 +219,14 @@ function rewardsLeftAfter(r) {
 }
 const leftTxt = r => { const v = rewardsLeftAfter(r); return v === null ? "-" : v; };
 
+function giftsLeftAfter(r) {
+  const st = rows.filter(x => x.kind === "stock" && x.channel === r.channel && x.date <= r.date).sort((a, b) => Number(b.id) - Number(a.id))[0];
+  if (!st) return null;
+  const used = entries().filter(x => x.channel === r.channel && Number(x.id) > Number(st.id) && x.date <= r.date).reduce((a, x) => a + x.sw, 0);
+  return st.amount - used;
+}
+const giftLeftTxt = r => { const v = giftsLeftAfter(r); return v === null ? "-" : v; };
+
 function updateAfter() {
   const el = $("after"), rl = $("rafter");
   if (!channel) { el.textContent = ""; rl.textContent = ""; return; }
@@ -253,14 +261,14 @@ function render() {
   const ov = sorted.map(r => objPct(r.channel, r.sw, r.date)).filter(p => p !== null);
   const oavg = ov.length ? Math.round(ov.reduce((a, b) => a + b, 0) / ov.length) : null;
   $("list").innerHTML = sorted.length ? `<div class="wrap"><table>
-    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sticks</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Reward</th><th>Rewards left</th><th></th></tr></thead>
+    <thead><tr><th>Date</th><th>Channel</th><th>POS / Horeca</th><th>Notes</th><th>EC</th><th>Sticks</th><th>Refused</th><th>QC</th><th>OBJ</th><th>Gifts left</th><th>Reward</th><th>Rewards left</th><th></th></tr></thead>
     <tbody>${sorted.map(r => `<tr><td class="lane-${r.channel}">${r.date}</td><td>${esc(r.channel) || "-"}</td><td>${esc(r.name) || "-"}</td>
       <td style="white-space:normal">${esc(r.notes) || "-"}</td>
       <td class="sw">${r.sw}</td><td class="sa">${r.sa}</td><td class="rf">${r.rf}</td><td><b>${r.sw + r.rf}</b></td>
       <td class="${objPct(r.channel, r.sw, r.date) >= 100 ? "sw" : ""}"><b>${objTxt(objPct(r.channel, r.sw, r.date))}</b></td>
-      <td class="${r.amount > 0 ? "sw" : ""}">${r.amount}</td><td><b>${leftTxt(r)}</b></td>
+      <td><b>${giftLeftTxt(r)}</b></td><td class="${r.amount > 0 ? "sw" : ""}">${r.amount}</td><td><b>${leftTxt(r)}</b></td>
       <td><button data-del="${r.id}" aria-label="Delete entry">✕</button></td></tr>`).join("")}</tbody>
-    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td>${sum("amount")}</td><td></td><td></td></tr></tfoot>
+    <tfoot><tr><td colspan="4">Total</td><td>${sw}</td><td>${sa}</td><td>${rf}</td><td>${sw + rf}</td><td>${objTxt(oavg)}</td><td></td><td>${sum("amount")}</td><td></td><td></td></tr></tfoot>
     </table></div>` : `<div class="empty">No results yet. Fill the form above and save.</div>`;
   updateAfter();
 }
