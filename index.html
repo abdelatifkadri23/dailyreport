@@ -153,7 +153,7 @@ td small{display:block;color:var(--mute);white-space:normal;font-size:.78rem}
 
 <script>
 // Paste your Google Apps Script web app link between the quotes to share results with everyone.
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwyZzZNG82uSjVuITD7-qTNCvwBUIMIGWKRrplnHXPpWNOn3JXPemUYvFBH8VnDShnnZA/exec";
+const SCRIPT_URL = "";
 
 const KEY = "daily-results", NAME = "daily-results-name", CHK = "daily-results-channel";
 const BA = "Kadri abdelatif", WILAYA = "Annaba";
@@ -328,7 +328,7 @@ $("copy").addEventListener("click", async () => {
     `*Total Cold Shoulder :* ${tot(day, "shoulder")}`,
     ...(hor.length ? [`*CML Informing :* ${pad(tot(hor, "sw"))}`] : []),
     `*Vente Tiges :* ${pad(tot(day, "sa"))}`,
-    `*Reward :* ${pad(tot(day, "amount"))}`].join("\n");
+    `*Reward :* ${pad(tot(pos, "amount"))}`].join("\n");
   try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
   catch (err) { prompt("Copy this report:", text); }
   setTimeout(() => $("copy").textContent = "Copy report", 1500);
